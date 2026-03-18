@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { getNotificationEmail, sendReservationOwnerEmail, sendReservationUserEmail } from '@/lib/email'
 
 // 来場連絡一覧取得
 export async function GET(request: NextRequest) {
@@ -87,6 +88,24 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // メール送信（失敗してもDB保存は成功とする）
+  const emailData = {
+    representative_name: body.representative_name,
+    date: body.date,
+    time: body.time,
+    adult_count: body.adult_count,
+    dogs: body.dogs ?? [],
+    phone: body.phone,
+    email: body.email,
+    estimated_fee: body.estimated_fee ?? 0,
+    note: body.note,
+  }
+  getNotificationEmail().then((ownerEmail) => {
+    sendReservationOwnerEmail(ownerEmail, emailData)
+  })
+  sendReservationUserEmail(emailData)
+
   return NextResponse.json(data, { status: 201 })
 }
 

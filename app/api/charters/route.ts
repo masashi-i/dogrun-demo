@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { getNotificationEmail, sendCharterOwnerEmail, sendCharterUserEmail } from '@/lib/email'
 
 // 貸し切り予約一覧取得
 export async function GET(request: NextRequest) {
@@ -68,6 +69,27 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // メール送信（失敗してもDB保存は成功とする）
+  const emailData = {
+    reservation_number: reservationNumber,
+    representative_name: body.representative_name,
+    date: body.date,
+    start_time: body.start_time,
+    duration: body.duration,
+    adult_count: body.adult_count,
+    dogs: body.dogs ?? [],
+    phone: body.phone,
+    email: body.email,
+    charter_fee: body.charter_fee ?? 0,
+    estimated_usage_fee: body.estimated_usage_fee ?? 0,
+    note: body.note,
+  }
+  getNotificationEmail().then((ownerEmail) => {
+    sendCharterOwnerEmail(ownerEmail, emailData)
+  })
+  sendCharterUserEmail(emailData)
+
   return NextResponse.json(data, { status: 201 })
 }
 
