@@ -118,7 +118,10 @@ interface ReservationEmailData {
 }
 
 export async function sendReservationOwnerEmail(ownerEmail: string, data: ReservationEmailData): Promise<void> {
-  if (!ownerEmail) return
+  if (!ownerEmail) {
+    console.log('[email] 経営者メール: 宛先未設定のためスキップ')
+    return
+  }
 
   const rows =
     infoRow('来場日', data.date) +
@@ -137,19 +140,24 @@ export async function sendReservationOwnerEmail(ownerEmail: string, data: Reserv
   `
 
   try {
-    await resend.emails.send({
+    console.log(`[email] 経営者へ来場連絡メール送信: from=${FROM_EMAIL}, to=${ownerEmail}`)
+    const result = await resend.emails.send({
       from: FROM_EMAIL,
       to: ownerEmail,
       subject: `【来場連絡】${data.representative_name}様 ${data.date}`,
       html: layout('来場連絡が届きました', body),
     })
+    console.log('[email] 経営者へ来場連絡メール送信成功:', result)
   } catch (err) {
-    console.error('経営者への来場連絡メール送信失敗:', err)
+    console.error('[email] 経営者への来場連絡メール送信失敗:', err)
   }
 }
 
 export async function sendReservationUserEmail(data: ReservationEmailData): Promise<void> {
-  if (!data.email) return
+  if (!data.email) {
+    console.log('[email] ユーザーメール(来場): 宛先なしのためスキップ')
+    return
+  }
 
   const rows =
     infoRow('来場日', data.date) +
@@ -173,14 +181,16 @@ export async function sendReservationUserEmail(data: ReservationEmailData): Prom
   `
 
   try {
-    await resend.emails.send({
+    console.log(`[email] ユーザーへ来場確認メール送信: from=${FROM_EMAIL}, to=${data.email}`)
+    const result = await resend.emails.send({
       from: FROM_EMAIL,
       to: data.email,
       subject: `【${SITE_NAME}】来場連絡を受け付けました`,
       html: layout('来場連絡を受け付けました', body),
     })
+    console.log('[email] ユーザーへ来場確認メール送信成功:', result)
   } catch (err) {
-    console.error('ユーザーへの来場連絡確認メール送信失敗:', err)
+    console.error('[email] ユーザーへの来場連絡確認メール送信失敗:', err)
   }
 }
 
@@ -209,7 +219,10 @@ function calcEndTime(startTime: string, hours: number): string {
 }
 
 export async function sendCharterOwnerEmail(ownerEmail: string, data: CharterEmailData): Promise<void> {
-  if (!ownerEmail) return
+  if (!ownerEmail) {
+    console.log('[email] 経営者メール(貸し切り): 宛先未設定のためスキップ')
+    return
+  }
 
   const endTime = calcEndTime(data.start_time, data.duration)
 
@@ -232,19 +245,24 @@ export async function sendCharterOwnerEmail(ownerEmail: string, data: CharterEma
   `
 
   try {
-    await resend.emails.send({
+    console.log(`[email] 経営者へ貸し切りメール送信: from=${FROM_EMAIL}, to=${ownerEmail}`)
+    const result = await resend.emails.send({
       from: FROM_EMAIL,
       to: ownerEmail,
       subject: `【貸し切り予約】${data.representative_name}様 ${data.date}`,
       html: layout('貸し切り予約が届きました', body),
     })
+    console.log('[email] 経営者へ貸し切りメール送信成功:', result)
   } catch (err) {
-    console.error('経営者への貸し切り予約メール送信失敗:', err)
+    console.error('[email] 経営者への貸し切り予約メール送信失敗:', err)
   }
 }
 
 export async function sendCharterUserEmail(data: CharterEmailData): Promise<void> {
-  if (!data.email) return
+  if (!data.email) {
+    console.log('[email] ユーザーメール(貸し切り): 宛先なしのためスキップ')
+    return
+  }
 
   const endTime = calcEndTime(data.start_time, data.duration)
 
@@ -277,13 +295,15 @@ export async function sendCharterUserEmail(data: CharterEmailData): Promise<void
   `
 
   try {
-    await resend.emails.send({
+    console.log(`[email] ユーザーへ貸し切り確認メール送信: from=${FROM_EMAIL}, to=${data.email}`)
+    const result = await resend.emails.send({
       from: FROM_EMAIL,
       to: data.email,
       subject: `【${SITE_NAME}】貸し切り予約を受け付けました`,
       html: layout('貸し切り予約を受け付けました', body),
     })
+    console.log('[email] ユーザーへ貸し切り確認メール送信成功:', result)
   } catch (err) {
-    console.error('ユーザーへの貸し切り確認メール送信失敗:', err)
+    console.error('[email] ユーザーへの貸し切り確認メール送信失敗:', err)
   }
 }

@@ -85,10 +85,20 @@ export async function POST(request: NextRequest) {
     estimated_usage_fee: body.estimated_usage_fee ?? 0,
     note: body.note,
   }
-  getNotificationEmail().then((ownerEmail) => {
-    sendCharterOwnerEmail(ownerEmail, emailData)
-  })
-  sendCharterUserEmail(emailData)
+
+  try {
+    const ownerEmail = await getNotificationEmail()
+    console.log('[charters/POST] 通知先メール:', ownerEmail || '(未設定)')
+    console.log('[charters/POST] ユーザーメール:', emailData.email || '(なし)')
+
+    await Promise.all([
+      sendCharterOwnerEmail(ownerEmail, emailData),
+      sendCharterUserEmail(emailData),
+    ])
+    console.log('[charters/POST] メール送信完了')
+  } catch (emailErr) {
+    console.error('[charters/POST] メール送信エラー:', emailErr)
+  }
 
   return NextResponse.json(data, { status: 201 })
 }

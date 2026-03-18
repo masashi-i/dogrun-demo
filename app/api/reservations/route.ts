@@ -101,10 +101,20 @@ export async function POST(request: NextRequest) {
     estimated_fee: body.estimated_fee ?? 0,
     note: body.note,
   }
-  getNotificationEmail().then((ownerEmail) => {
-    sendReservationOwnerEmail(ownerEmail, emailData)
-  })
-  sendReservationUserEmail(emailData)
+
+  try {
+    const ownerEmail = await getNotificationEmail()
+    console.log('[reservations/POST] 通知先メール:', ownerEmail || '(未設定)')
+    console.log('[reservations/POST] ユーザーメール:', emailData.email || '(なし)')
+
+    await Promise.all([
+      sendReservationOwnerEmail(ownerEmail, emailData),
+      sendReservationUserEmail(emailData),
+    ])
+    console.log('[reservations/POST] メール送信完了')
+  } catch (emailErr) {
+    console.error('[reservations/POST] メール送信エラー:', emailErr)
+  }
 
   return NextResponse.json(data, { status: 201 })
 }
