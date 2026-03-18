@@ -13,6 +13,15 @@ interface Setting {
   value: string;
 }
 
+/** 施設情報フィールドの定義 */
+const SITE_INFO_FIELDS = [
+  { key: "site_name", label: "サイト名", placeholder: "零ちゃっちゃファーム DOG RUN" },
+  { key: "phone", label: "電話番号", placeholder: "000-0000-0000" },
+  { key: "address", label: "住所", placeholder: "多治見市下沢町..." },
+  { key: "instagram_url", label: "Instagram URL", placeholder: "https://www.instagram.com/..." },
+  { key: "business_hours", label: "営業時間", placeholder: "9:00〜日没（季節により変動）" },
+] as const;
+
 export default function AdminSettingsPage() {
   const [closedDays, setClosedDays] = useState<ClosedDay[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,11 +30,20 @@ export default function AdminSettingsPage() {
   const [newReason, setNewReason] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // 通知先メールアドレス
-  const [notificationEmail, setNotificationEmail] = useState("");
-  const [editingEmail, setEditingEmail] = useState(false);
-  const [emailInput, setEmailInput] = useState("");
-  const [savingEmail, setSavingEmail] = useState(false);
+  // 全設定値（settingsテーブル）
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [savingField, setSavingField] = useState(false);
+
+  // パスワード変更
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -37,12 +55,11 @@ export default function AdminSettingsPage() {
         setClosedDays(closedDaysData);
 
         if (Array.isArray(settingsRes)) {
-          const emailSetting = settingsRes.find(
-            (s: Setting) => s.key === "notification_email"
-          );
-          if (emailSetting) {
-            setNotificationEmail(emailSetting.value);
-          }
+          const map: Record<string, string> = {};
+          settingsRes.forEach((s: Setting) => {
+            map[s.key] = s.value;
+          });
+          setSettings(map);
         }
       } catch (err) {
         setError(
@@ -54,6 +71,72 @@ export default function AdminSettingsPage() {
     }
     loadData();
   }, []);
+
+  // --- 設定値の保存 ---
+
+  function handleStartEdit(key: string) {
+    setEditingField(key);
+    setEditValue(settings[key] ?? "");
+  }
+
+  async function handleSaveField(key: string) {
+    setSavingField(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, value: editValue }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "保存に失敗しました");
+      }
+      setSettings((prev) => ({ ...prev, [key]: editValue }));
+      setEditingField(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "保存に失敗しました");
+    } finally {
+      setSavingField(false);
+    }
+  }
+
+  // --- パスワード変更 ---
+
+  async function handleChangePassword() {
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (newPassword.length < 4) {
+      setPasswordError("パスワードは4文字以上にしてください");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("新しいパスワードが一致しません");
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "パスワードの変更に失敗しました");
+      }
+      setPasswordSuccess("パスワードを変更しました");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowPasswordForm(false);
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "パスワードの変更に失敗しました");
+    } finally {
+      setSavingPassword(false);
+    }
+  }
 
   // --- 臨時休業日 ---
 
@@ -89,37 +172,6 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // --- 通知先メールアドレス ---
-
-  function handleStartEditEmail() {
-    setEditingEmail(true);
-    setEmailInput(notificationEmail);
-  }
-
-  async function handleSaveEmail() {
-    setSavingEmail(true);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "notification_email",
-          value: emailInput,
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? "保存に失敗しました");
-      }
-      setNotificationEmail(emailInput);
-      setEditingEmail(false);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "保存に失敗しました");
-    } finally {
-      setSavingEmail(false);
-    }
-  }
-
   const today = new Date().toISOString().split("T")[0];
 
   if (loading) {
@@ -146,6 +198,65 @@ export default function AdminSettingsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">設定</h1>
 
+      {/* 施設情報 */}
+      <Card>
+        <h2 className="font-bold text-lg mb-4">施設情報</h2>
+        <p className="text-sm text-text-muted mb-4">
+          サイトに表示される施設情報です。変更するとフッター・アクセスページ・メール等に反映されます。
+        </p>
+
+        <div className="space-y-3">
+          {SITE_INFO_FIELDS.map((field) => (
+            <div key={field.key}>
+              {editingField === field.key ? (
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex-1 min-w-[250px]">
+                    <Input
+                      label={field.label}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      placeholder={field.placeholder}
+                    />
+                  </div>
+                  <Button
+                    onClick={() => handleSaveField(field.key)}
+                    disabled={savingField}
+                    size="sm"
+                  >
+                    {savingField ? "保存中..." : "保存"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingField(null)}
+                  >
+                    キャンセル
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface-dark">
+                  <div>
+                    <span className="text-xs text-text-muted">{field.label}</span>
+                    <p className="text-sm">
+                      {settings[field.key] || (
+                        <span className="text-text-muted">未設定</span>
+                      )}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleStartEdit(field.key)}
+                  >
+                    編集
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
+
       {/* 通知先メールアドレス */}
       <Card>
         <h2 className="font-bold text-lg mb-4">通知先メールアドレス</h2>
@@ -153,28 +264,28 @@ export default function AdminSettingsPage() {
           来場連絡・貸し切り予約が入った際に通知メールを送信するアドレスです。
         </p>
 
-        {editingEmail ? (
+        {editingField === "notification_email" ? (
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[250px]">
               <Input
                 label="メールアドレス"
                 type="email"
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
                 placeholder="example@email.com"
               />
             </div>
             <Button
-              onClick={handleSaveEmail}
-              disabled={!emailInput || savingEmail}
-              size="md"
+              onClick={() => handleSaveField("notification_email")}
+              disabled={!editValue || savingField}
+              size="sm"
             >
-              {savingEmail ? "保存中..." : "保存"}
+              {savingField ? "保存中..." : "保存"}
             </Button>
             <Button
               variant="ghost"
-              size="md"
-              onClick={() => setEditingEmail(false)}
+              size="sm"
+              onClick={() => setEditingField(null)}
             >
               キャンセル
             </Button>
@@ -182,14 +293,108 @@ export default function AdminSettingsPage() {
         ) : (
           <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface-dark">
             <span className="text-sm">
-              {notificationEmail || (
+              {settings["notification_email"] || (
                 <span className="text-text-muted">未設定</span>
               )}
             </span>
-            <Button variant="outline" size="sm" onClick={handleStartEditEmail}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleStartEdit("notification_email")}
+            >
               編集
             </Button>
           </div>
+        )}
+      </Card>
+
+      {/* パスワード変更 */}
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-lg">管理者パスワード</h2>
+          {!showPasswordForm && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowPasswordForm(true);
+                setPasswordError("");
+                setPasswordSuccess("");
+              }}
+            >
+              変更
+            </Button>
+          )}
+        </div>
+
+        {passwordSuccess && (
+          <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700 mb-4">
+            {passwordSuccess}
+          </div>
+        )}
+
+        {showPasswordForm && (
+          <div className="space-y-4">
+            <Input
+              label="現在のパスワード"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+            <Input
+              label="新しいパスワード（4文字以上）"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+            />
+            <Input
+              label="新しいパスワード（確認）"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+            />
+
+            {passwordError && (
+              <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                {passwordError}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleChangePassword}
+                disabled={!currentPassword || !newPassword || !confirmPassword || savingPassword}
+                size="sm"
+              >
+                {savingPassword ? "変更中..." : "パスワードを変更"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowPasswordForm(false);
+                  setCurrentPassword("");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                  setPasswordError("");
+                }}
+              >
+                キャンセル
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {!showPasswordForm && !passwordSuccess && (
+          <p className="text-sm text-text-muted">
+            管理画面のログインパスワードを変更できます。
+          </p>
         )}
       </Card>
 

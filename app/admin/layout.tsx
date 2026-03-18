@@ -1,15 +1,22 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import { AdminHeader } from "@/components/layout/AdminHeader";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
-
-export const metadata = {
-  title: "管理画面",
-};
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isLoginPage = pathname === "/admin/login";
+
+  // ログインページは管理画面レイアウトを適用しない
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <AdminHeader />

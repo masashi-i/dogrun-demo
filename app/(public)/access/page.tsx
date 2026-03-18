@@ -1,17 +1,54 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useState, useEffect } from "react";
 import { Container } from "@/components/ui/Container";
 import { SectionTitle } from "@/components/ui/SectionTitle";
 import { Card } from "@/components/ui/Card";
-import { BUSINESS_HOURS } from "@/lib/constants";
 
-export const metadata: Metadata = {
-  title: "アクセス",
-  description: "零ちゃっちゃファームDOG RUNへのアクセス方法。多治見市下沢町。駐車場あり。",
+interface SiteInfo {
+  phone: string;
+  address: string;
+  businessHours: string;
+}
+
+const KEY_MAP: Record<string, keyof SiteInfo> = {
+  phone: "phone",
+  address: "address",
+  business_hours: "businessHours",
 };
 
 export default function AccessPage() {
-  const phone = process.env.NEXT_PUBLIC_PHONE ?? "000-0000-0000";
-  const address = process.env.NEXT_PUBLIC_ADDRESS ?? "多治見市下沢町（番地：未定）";
+  const [info, setInfo] = useState<SiteInfo>({
+    phone: "",
+    address: "",
+    businessHours: "",
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+
+        const updated: SiteInfo = { phone: "", address: "", businessHours: "" };
+        for (const row of data) {
+          const field = KEY_MAP[row.key];
+          if (field && row.value) {
+            updated[field] = row.value;
+          }
+        }
+        setInfo(updated);
+      } catch {
+        // フォールバック
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadSettings();
+  }, []);
 
   return (
     <>
@@ -35,37 +72,47 @@ export default function AccessPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <h3 className="font-bold mb-3">所在地</h3>
-                <p className="text-text-muted">{address}</p>
-                <h3 className="font-bold mb-3 mt-6">電話番号</h3>
-                <p>
-                  <span className="hidden sm:inline text-text-muted">
-                    {phone}
-                  </span>
-                  <a
-                    href={`tel:${phone.replace(/-/g, "")}`}
-                    className="sm:hidden text-primary underline"
-                  >
-                    {phone}
-                  </a>
-                </p>
-              </Card>
+            {loading ? (
+              <p className="text-center text-text-muted">読み込み中...</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <h3 className="font-bold mb-3">所在地</h3>
+                  <p className="text-text-muted">{info.address || "—"}</p>
+                  <h3 className="font-bold mb-3 mt-6">電話番号</h3>
+                  <p>
+                    {info.phone ? (
+                      <>
+                        <span className="hidden sm:inline text-text-muted">
+                          {info.phone}
+                        </span>
+                        <a
+                          href={`tel:${info.phone.replace(/-/g, "")}`}
+                          className="sm:hidden text-primary underline"
+                        >
+                          {info.phone}
+                        </a>
+                      </>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </p>
+                </Card>
 
-              <Card>
-                <h3 className="font-bold mb-3">営業時間</h3>
-                <p className="text-text-muted">
-                  {BUSINESS_HOURS.open}〜{BUSINESS_HOURS.close}
-                </p>
-                <p className="text-text-muted mt-1">{BUSINESS_HOURS.holiday}</p>
+                <Card>
+                  <h3 className="font-bold mb-3">営業時間</h3>
+                  <p className="text-text-muted">
+                    {info.businessHours || "—"}
+                  </p>
+                  <p className="text-text-muted mt-1">年中無休（不定休はお知らせで告知）</p>
 
-                <h3 className="font-bold mb-3 mt-6">駐車場</h3>
-                <p className="text-text-muted">
-                  無料駐車場あり（台数は現地にてご確認ください）
-                </p>
-              </Card>
-            </div>
+                  <h3 className="font-bold mb-3 mt-6">駐車場</h3>
+                  <p className="text-text-muted">
+                    無料駐車場あり（台数は現地にてご確認ください）
+                  </p>
+                </Card>
+              </div>
+            )}
 
             {/* 交通案内 */}
             <Card>

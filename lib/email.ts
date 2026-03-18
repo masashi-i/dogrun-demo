@@ -3,10 +3,9 @@ import { supabase } from '@/lib/supabase'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+import { getSiteSettings } from '@/lib/siteSettings'
+
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
-const SITE_NAME = '零ちゃっちゃファーム DOG RUN'
-const PHONE = process.env.NEXT_PUBLIC_PHONE ?? ''
-const ADDRESS = process.env.NEXT_PUBLIC_ADDRESS ?? ''
 
 /** settingsテーブルから通知先メールアドレスを取得 */
 export async function getNotificationEmail(): Promise<string> {
@@ -26,7 +25,13 @@ export async function getNotificationEmail(): Promise<string> {
 
 // --- 共通HTMLレイアウト ---
 
-function layout(title: string, body: string): string {
+interface LayoutContext {
+  siteName: string
+  phone: string
+  address: string
+}
+
+function layout(title: string, body: string, ctx: LayoutContext): string {
   return `
 <!DOCTYPE html>
 <html lang="ja">
@@ -38,7 +43,7 @@ function layout(title: string, body: string): string {
         <!-- ヘッダー -->
         <tr>
           <td style="background:#5C7A4E;padding:24px 32px;text-align:center;">
-            <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;">${SITE_NAME}</p>
+            <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;">${ctx.siteName}</p>
           </td>
         </tr>
         <!-- タイトル -->
@@ -56,9 +61,9 @@ function layout(title: string, body: string): string {
         <!-- フッター -->
         <tr>
           <td style="background:#F5F0E8;padding:20px 32px;text-align:center;font-size:12px;color:#6B5C47;">
-            <p style="margin:0;font-weight:bold;">${SITE_NAME}</p>
-            ${ADDRESS ? `<p style="margin:4px 0 0;">${ADDRESS}</p>` : ''}
-            ${PHONE ? `<p style="margin:4px 0 0;">TEL: ${PHONE}</p>` : ''}
+            <p style="margin:0;font-weight:bold;">${ctx.siteName}</p>
+            ${ctx.address ? `<p style="margin:4px 0 0;">${ctx.address}</p>` : ''}
+            ${ctx.phone ? `<p style="margin:4px 0 0;">TEL: ${ctx.phone}</p>` : ''}
           </td>
         </tr>
       </table>
@@ -115,13 +120,18 @@ interface ReservationEmailData {
   email: string
   estimated_fee: number
   note?: string
+  cancel_token?: string
 }
+
+const BASE_URL = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
 
 export async function sendReservationOwnerEmail(ownerEmail: string, data: ReservationEmailData): Promise<void> {
   if (!ownerEmail) {
     console.log('[email] 経営者メール: 宛先未設定のためスキップ')
     return
   }
+
+  const site = await getSiteSettings()
 
   const rows =
     infoRow('来場日', data.date) +
@@ -145,7 +155,7 @@ export async function sendReservationOwnerEmail(ownerEmail: string, data: Reserv
       from: FROM_EMAIL,
       to: ownerEmail,
       subject: `【来場連絡】${data.representative_name}様 ${data.date}`,
-      html: layout('来場連絡が届きました', body),
+      html: layout('来場連絡が届きました', body, site),
     })
     console.log('[email] 経営者へ来場連絡メール送信成功:', result)
   } catch (err) {
@@ -158,6 +168,8 @@ export async function sendReservationUserEmail(data: ReservationEmailData): Prom
     console.log('[email] ユーザーメール(来場): 宛先なしのためスキップ')
     return
   }
+
+  const site = await getSiteSettings()
 
   const rows =
     infoRow('来場日', data.date) +
@@ -172,12 +184,15 @@ export async function sendReservationUserEmail(data: ReservationEmailData): Prom
     ${infoTable(rows)}
     <p style="font-size:13px;color:#6B5C47;">
       ※ 概算料金は当日現金でのお支払いとなります。<br>
-      ※ キャンセル料はかかりません。ご都合が変わった場合はお気軽にお電話ください。<br>
-      ${PHONE ? `※ TEL: ${PHONE}` : ''}
+      ※ キャンセル料はかかりません。<br>
+      ※ ワクチン接種証明書（1年以内）を忘れずにお持ちください。
     </p>
-    <p style="font-size:13px;color:#6B5C47;">
-      ワクチン接種証明書（1年以内）を忘れずにお持ちください。
-    </p>
+    ${data.cancel_token ? `
+    <div style="margin:16px 0;padding:16px;background:#F5F0E8;border-radius:8px;text-align:center;">
+      <p style="margin:0 0 8px;font-size:13px;color:#6B5C47;">ご都合が変わった場合はこちらからキャンセルできます。</p>
+      <a href="${BASE_URL}/reserve/cancel?token=${data.cancel_token}" style="display:inline-block;padding:8px 24px;background:#8B6347;color:#ffffff;border-radius:6px;text-decoration:none;font-size:13px;">来場連絡をキャンセル</a>
+    </div>
+    ` : ''}
   `
 
   try {
@@ -185,8 +200,8 @@ export async function sendReservationUserEmail(data: ReservationEmailData): Prom
     const result = await resend.emails.send({
       from: FROM_EMAIL,
       to: data.email,
-      subject: `【${SITE_NAME}】来場連絡を受け付けました`,
-      html: layout('来場連絡を受け付けました', body),
+      subject: `【${site.siteName}】来場連絡を受け付けました`,
+      html: layout('来場連絡を受け付けました', body, site),
     })
     console.log('[email] ユーザーへ来場確認メール送信成功:', result)
   } catch (err) {
@@ -209,6 +224,7 @@ interface CharterEmailData {
   charter_fee: number
   estimated_usage_fee: number
   note?: string
+  cancel_token?: string
 }
 
 function calcEndTime(startTime: string, hours: number): string {
@@ -224,6 +240,7 @@ export async function sendCharterOwnerEmail(ownerEmail: string, data: CharterEma
     return
   }
 
+  const site = await getSiteSettings()
   const endTime = calcEndTime(data.start_time, data.duration)
 
   const rows =
@@ -250,7 +267,7 @@ export async function sendCharterOwnerEmail(ownerEmail: string, data: CharterEma
       from: FROM_EMAIL,
       to: ownerEmail,
       subject: `【貸し切り予約】${data.representative_name}様 ${data.date}`,
-      html: layout('貸し切り予約が届きました', body),
+      html: layout('貸し切り予約が届きました', body, site),
     })
     console.log('[email] 経営者へ貸し切りメール送信成功:', result)
   } catch (err) {
@@ -264,6 +281,7 @@ export async function sendCharterUserEmail(data: CharterEmailData): Promise<void
     return
   }
 
+  const site = await getSiteSettings()
   const endTime = calcEndTime(data.start_time, data.duration)
 
   const rows =
@@ -279,7 +297,7 @@ export async function sendCharterUserEmail(data: CharterEmailData): Promise<void
     <div style="background:#F5F0E8;border-radius:8px;padding:16px;margin:16px 0;font-size:13px;color:#2C2416;">
       <p style="margin:0 0 8px;font-weight:bold;">【キャンセルポリシー（2026.1.1改訂）】</p>
       <p style="margin:0;">・3日前まで：無料<br>・1日前まで：貸し切り料金の50%<br>・当日：貸し切り料金の100%</p>
-      <p style="margin:8px 0 0;">キャンセルのご連絡はお電話にてお願いいたします。${PHONE ? `<br>TEL: ${PHONE}` : ''}</p>
+      <p style="margin:8px 0 0;">キャンセルのご連絡はお電話にてお願いいたします。${site.phone ? `<br>TEL: ${site.phone}` : ''}</p>
     </div>
   `
 
@@ -292,6 +310,13 @@ export async function sendCharterUserEmail(data: CharterEmailData): Promise<void
       ※ 利用料金（人数・頭数分）は別途当日現金でのお支払いとなります。<br>
       ※ ワクチン接種証明書（1年以内）を忘れずにお持ちください。
     </p>
+    ${data.cancel_token ? `
+    <div style="margin:16px 0;padding:16px;background:#F5F0E8;border-radius:8px;text-align:center;">
+      <p style="margin:0 0 8px;font-size:13px;color:#6B5C47;">キャンセルをご希望の場合はこちらから手続きできます。</p>
+      <a href="${BASE_URL}/charter/cancel?token=${data.cancel_token}" style="display:inline-block;padding:8px 24px;background:#8B6347;color:#ffffff;border-radius:6px;text-decoration:none;font-size:13px;">貸し切り予約をキャンセル</a>
+      <p style="margin:8px 0 0;font-size:11px;color:#6B5C47;">※ キャンセルポリシーに基づきキャンセル料が発生する場合があります。</p>
+    </div>
+    ` : ''}
   `
 
   try {
@@ -299,11 +324,52 @@ export async function sendCharterUserEmail(data: CharterEmailData): Promise<void
     const result = await resend.emails.send({
       from: FROM_EMAIL,
       to: data.email,
-      subject: `【${SITE_NAME}】貸し切り予約を受け付けました`,
-      html: layout('貸し切り予約を受け付けました', body),
+      subject: `【${site.siteName}】貸し切り予約を受け付けました`,
+      html: layout('貸し切り予約を受け付けました', body, site),
     })
     console.log('[email] ユーザーへ貸し切り確認メール送信成功:', result)
   } catch (err) {
     console.error('[email] ユーザーへの貸し切り確認メール送信失敗:', err)
+  }
+}
+
+// --- キャンセル通知メール ---
+
+interface CancelNotificationData {
+  type: 'reservation' | 'charter'
+  representative_name: string
+  date: string
+  time?: string
+  reservation_number?: string
+}
+
+export async function sendCancelNotificationEmail(ownerEmail: string, data: CancelNotificationData): Promise<void> {
+  if (!ownerEmail) return
+
+  const site = await getSiteSettings()
+  const typeLabel = data.type === 'reservation' ? '来場連絡' : '貸し切り予約'
+
+  const rows =
+    infoRow('種別', typeLabel) +
+    (data.reservation_number ? infoRow('予約番号', data.reservation_number) : '') +
+    infoRow('代表者', data.representative_name) +
+    infoRow('日付', data.date) +
+    (data.time ? infoRow('時刻', data.time) : '')
+
+  const body = `
+    <p>${typeLabel}がキャンセルされました。</p>
+    ${infoTable(rows)}
+  `
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: ownerEmail,
+      subject: `【キャンセル】${data.representative_name}様 ${data.date}`,
+      html: layout(`${typeLabel}がキャンセルされました`, body, site),
+    })
+    console.log('[email] キャンセル通知メール送信成功')
+  } catch (err) {
+    console.error('[email] キャンセル通知メール送信失敗:', err)
   }
 }

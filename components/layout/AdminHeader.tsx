@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { signOut } from "next-auth/react";
 import { ADMIN_NAV_ITEMS } from "@/lib/constants";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -36,7 +37,18 @@ export function AdminHeader() {
           </button>
           <span className="font-bold text-primary">管理画面</span>
         </div>
-        <span className="text-sm text-text-muted">Phase 0 デモ版</span>
+
+        <div className="flex items-center gap-3">
+          <Link href="/" className="text-sm text-text-muted hover:text-primary hidden sm:block">
+            サイトに戻る
+          </Link>
+          <button
+            onClick={() => signOut({ callbackUrl: "/admin/login" })}
+            className="text-sm text-text-muted hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+          >
+            ログアウト
+          </button>
+        </div>
       </div>
 
       {/* モバイル用ナビ */}

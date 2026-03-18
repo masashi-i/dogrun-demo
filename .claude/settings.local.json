@@ -9,7 +9,9 @@
       "WebFetch(domain:unsplash.com)",
       "Bash(npx next:*)",
       "WebFetch(domain:dogrun-demo.vercel.app)",
-      "Bash(npm list:*)"
+      "Bash(npm list:*)",
+      "Bash(node:*)",
+      "Bash(node -e \":*)"
     ]
   }
 }

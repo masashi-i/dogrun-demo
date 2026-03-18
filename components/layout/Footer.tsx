@@ -1,11 +1,65 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { NAV_ITEMS, BUSINESS_HOURS } from "@/lib/constants";
+import { NAV_ITEMS } from "@/lib/constants";
+
+interface SiteInfo {
+  siteName: string;
+  phone: string;
+  address: string;
+  instagramUrl: string;
+  businessHours: string;
+}
+
+const DEFAULT_SITE_INFO: SiteInfo = {
+  siteName: "零ちゃっちゃファーム DOG RUN",
+  phone: "",
+  address: "",
+  instagramUrl: "#",
+  businessHours: "",
+};
+
+/** settingsテーブルのkey → SiteInfoフィールドの対応 */
+const KEY_MAP: Record<string, keyof SiteInfo> = {
+  site_name: "siteName",
+  phone: "phone",
+  address: "address",
+  instagram_url: "instagramUrl",
+  business_hours: "businessHours",
+};
+
+/** Instagram URLからアカウント名を抽出（例: https://www.instagram.com/foo/ → @foo） */
+function extractInstagramHandle(url: string): string {
+  const match = url.match(/instagram\.com\/([^/?]+)/);
+  return match ? `@${match[1]}` : "";
+}
 
 export function Footer() {
-  const phone = process.env.NEXT_PUBLIC_PHONE ?? "000-0000-0000";
-  const address =
-    process.env.NEXT_PUBLIC_ADDRESS ?? "多治見市下沢町（番地：未定）";
-  const instagram = process.env.NEXT_PUBLIC_INSTAGRAM ?? "#";
+  const [info, setInfo] = useState<SiteInfo>(DEFAULT_SITE_INFO);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+
+        const updated = { ...DEFAULT_SITE_INFO };
+        for (const row of data) {
+          const field = KEY_MAP[row.key];
+          if (field && row.value) {
+            updated[field] = row.value;
+          }
+        }
+        setInfo(updated);
+      } catch {
+        // フォールバック：デフォルト値のまま表示
+      }
+    }
+    loadSettings();
+  }, []);
 
   return (
     <footer className="bg-primary-dark text-white">
@@ -15,22 +69,28 @@ export function Footer() {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <span className="text-2xl">🐕</span>
-              <span className="text-lg font-bold">零ちゃっちゃファーム</span>
+              <span className="text-lg font-bold">{info.siteName}</span>
             </div>
-            <p className="text-sm text-white/80 mb-2">{address}</p>
-            <p className="text-sm text-white/80 mb-2">
-              <span className="hidden sm:inline">TEL: {phone}</span>
-              <a
-                href={`tel:${phone.replace(/-/g, "")}`}
-                className="sm:hidden underline"
-              >
-                TEL: {phone}
-              </a>
-            </p>
-            <p className="text-sm text-white/80">
-              営業時間: {BUSINESS_HOURS.open}〜{BUSINESS_HOURS.close}
-            </p>
-            <p className="text-sm text-white/80">{BUSINESS_HOURS.holiday}</p>
+            {info.address && (
+              <p className="text-sm text-white/80 mb-2">{info.address}</p>
+            )}
+            {info.phone && (
+              <p className="text-sm text-white/80 mb-2">
+                <span className="hidden sm:inline">TEL: {info.phone}</span>
+                <a
+                  href={`tel:${info.phone.replace(/-/g, "")}`}
+                  className="sm:hidden underline"
+                >
+                  TEL: {info.phone}
+                </a>
+              </p>
+            )}
+            {info.businessHours && (
+              <p className="text-sm text-white/80">
+                営業時間: {info.businessHours}
+              </p>
+            )}
+            <p className="text-sm text-white/80">年中無休（不定休はお知らせで告知）</p>
           </div>
 
           {/* ナビゲーション */}
@@ -65,14 +125,16 @@ export function Footer() {
               >
                 貸し切り予約はこちら
               </Link>
-              <a
-                href={instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors"
-              >
-                Instagram @reichaccha_farm_whippet
-              </a>
+              {info.instagramUrl && info.instagramUrl !== "#" && (
+                <a
+                  href={info.instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors"
+                >
+                  Instagram {extractInstagramHandle(info.instagramUrl)}
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -80,9 +142,12 @@ export function Footer() {
         {/* コピーライト */}
         <div className="mt-10 pt-6 border-t border-white/20 text-center">
           <p className="text-sm text-white/60">
-            &copy; {new Date().getFullYear()} 零ちゃっちゃファーム DOG RUN. All
+            &copy; {new Date().getFullYear()} {info.siteName}. All
             rights reserved.
           </p>
+          <Link href="/admin/login" className="text-xs text-white/30 hover:text-white/50 transition-colors mt-2 inline-block">
+            管理者ログイン
+          </Link>
         </div>
       </div>
     </footer>

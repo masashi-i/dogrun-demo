@@ -1,11 +1,24 @@
+import { randomUUID } from 'crypto'
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
-import { getNotificationEmail, sendCharterOwnerEmail, sendCharterUserEmail } from '@/lib/email'
+import { getNotificationEmail, sendCharterOwnerEmail, sendCharterUserEmail, sendCancelNotificationEmail } from '@/lib/email'
 
 // 貸し切り予約一覧取得
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const date = searchParams.get('date')
+  const cancelToken = searchParams.get('cancel_token')
+
+  // cancel_tokenで1件取得（キャンセルページ用）
+  if (cancelToken) {
+    const { data, error } = await supabase
+      .from('charters')
+      .select('*')
+      .eq('cancel_token', cancelToken)
+      .single()
+    if (error || !data) return NextResponse.json({ error: '予約が見つかりません' }, { status: 404 })
+    return NextResponse.json(data)
+  }
 
   let query = supabase
     .from('charters')
@@ -36,7 +49,6 @@ export async function POST(request: NextRequest) {
   const newStart = timeToMinutes(body.start_time)
   const newEnd = newStart + (body.duration ?? 0) * 60
 
-  // 同日のキャンセル済み以外の既存予約を取得
   const { data: existing, error: fetchError } = await supabase
     .from('charters')
     .select('start_time, duration')
@@ -48,7 +60,6 @@ export async function POST(request: NextRequest) {
   const hasOverlap = (existing ?? []).some((row) => {
     const existStart = timeToMinutes(row.start_time)
     const existEnd = existStart + (row.duration ?? 0) * 60
-    // 2つの時間帯が重なる条件: 開始A < 終了B かつ 開始B < 終了A
     return newStart < existEnd && existStart < newEnd
   })
 
@@ -59,12 +70,13 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // --- 予約番号を生成して保存 ---
+  // --- 予約番号・cancel_tokenを生成して保存 ---
   const reservationNumber = `CHT-${Date.now()}`
+  const cancelToken = randomUUID()
 
   const { data, error } = await supabase
     .from('charters')
-    .insert([{ ...body, reservation_number: reservationNumber }])
+    .insert([{ ...body, reservation_number: reservationNumber, cancel_token: cancelToken }])
     .select()
     .single()
 
@@ -84,13 +96,11 @@ export async function POST(request: NextRequest) {
     charter_fee: body.charter_fee ?? 0,
     estimated_usage_fee: body.estimated_usage_fee ?? 0,
     note: body.note,
+    cancel_token: cancelToken,
   }
 
   try {
     const ownerEmail = await getNotificationEmail()
-    console.log('[charters/POST] 通知先メール:', ownerEmail || '(未設定)')
-    console.log('[charters/POST] ユーザーメール:', emailData.email || '(なし)')
-
     await Promise.all([
       sendCharterOwnerEmail(ownerEmail, emailData),
       sendCharterUserEmail(emailData),
@@ -117,4 +127,67 @@ export async function PATCH(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
+}
+
+// キャンセル（cancel_tokenで認証）
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const cancelToken = searchParams.get('cancel_token')
+
+  if (!cancelToken) {
+    return NextResponse.json({ error: 'cancel_tokenが必要です' }, { status: 400 })
+  }
+
+  const { data: charter, error: fetchError } = await supabase
+    .from('charters')
+    .select('*')
+    .eq('cancel_token', cancelToken)
+    .single()
+
+  if (fetchError || !charter) {
+    return NextResponse.json({ error: '予約が見つかりません' }, { status: 404 })
+  }
+
+  if (charter.status !== 'CONFIRMED') {
+    return NextResponse.json({ error: 'この予約はすでにキャンセル済みです' }, { status: 409 })
+  }
+
+  // キャンセル料を計算してステータスを決定
+  const visitDate = new Date(charter.date + 'T00:00:00')
+  const now = new Date()
+  const daysLeft = Math.ceil((visitDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+  let newStatus: string
+  if (daysLeft >= 3) {
+    newStatus = 'CANCELLED_FREE'
+  } else if (daysLeft >= 1) {
+    newStatus = 'CANCELLED_50'
+  } else {
+    newStatus = 'CANCELLED_100'
+  }
+
+  const { error: updateError } = await supabase
+    .from('charters')
+    .update({ status: newStatus })
+    .eq('id', charter.id)
+
+  if (updateError) {
+    return NextResponse.json({ error: 'キャンセル処理に失敗しました' }, { status: 500 })
+  }
+
+  // 経営者へキャンセル通知メール
+  try {
+    const ownerEmail = await getNotificationEmail()
+    await sendCancelNotificationEmail(ownerEmail, {
+      type: 'charter',
+      representative_name: charter.representative_name,
+      date: charter.date,
+      time: charter.start_time,
+      reservation_number: charter.reservation_number,
+    })
+  } catch (emailErr) {
+    console.error('[charters/DELETE] キャンセル通知メール送信エラー:', emailErr)
+  }
+
+  return NextResponse.json({ success: true, status: newStatus })
 }
