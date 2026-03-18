@@ -114,13 +114,6 @@ export function CharterForm() {
   return (
     <FormProvider {...methods}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* エラーメッセージ */}
-        {submitError && (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-            {submitError}
-          </div>
-        )}
-
         {/* 貸し切り日時 */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Input
@@ -246,6 +239,13 @@ export function CharterForm() {
           placeholder="利用目的やご要望があればご記入ください"
           {...register("note")}
         />
+
+        {/* エラーメッセージ */}
+        {submitError && (
+          <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+            {submitError}
+          </div>
+        )}
 
         {/* 送信ボタン */}
         <div className="pt-4">

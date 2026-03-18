@@ -28,6 +28,15 @@ function parseVisitHour(visitTime: string): number | null {
   return hour;
 }
 
+/** "HH:MM" 形式の開始時刻と利用時間から終了時刻を計算 */
+function calcEndTime(startTime: string, hours: number): string {
+  const match = startTime.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return "";
+  const endHour = parseInt(match[1], 10) + hours;
+  const endMin = match[2];
+  return `${endHour}:${endMin}`;
+}
+
 /** サイズに応じたバッジスタイル */
 function sizeBadgeClass(size: string): string {
   if (size === "LARGE") return "bg-red-100 text-red-700 border-red-200";
@@ -146,8 +155,13 @@ export default function ReserveListPage() {
     return map;
   }, [reservations]);
 
-  // 全犬の合計
-  const totalDogs = reservations.reduce((sum, r) => sum + r.dogs.length, 0);
+  // 全組数（来場連絡 + 貸し切り）
+  const totalGroups = reservations.length + charters.length;
+
+  // 全犬の合計（来場連絡 + 貸し切り）
+  const totalDogs =
+    reservations.reduce((sum, r) => sum + r.dogs.length, 0) +
+    charters.reduce((sum, c) => sum + c.dogs.length, 0);
 
   if (loading) {
     return (
@@ -220,7 +234,7 @@ export default function ReserveListPage() {
                   </h2>
                   <div className="flex items-center gap-3 text-sm text-text-muted">
                     <span>
-                      {reservations.length}組 / {totalDogs}頭
+                      {totalGroups}組 / {totalDogs}頭
                     </span>
                   </div>
                 </div>
@@ -284,8 +298,7 @@ export default function ReserveListPage() {
                               貸し切り予約あり
                             </h3>
                             <p className="text-xs text-text-muted">
-                              {c.startTime}〜{parseInt(c.startTime)}
-                              {c.hours}時間（一般利用不可）
+                              {c.startTime}〜{calcEndTime(c.startTime, c.hours)}（{c.hours}時間・一般利用不可）
                             </p>
                           </div>
                         </div>
