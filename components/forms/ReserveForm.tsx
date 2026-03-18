@@ -7,9 +7,18 @@ import { useRouter } from "next/navigation";
 import { reservationSchema, type ReservationInput } from "@/lib/validations";
 import { calcFee, getDayType } from "@/lib/feeCalculator";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Button } from "@/components/ui/Button";
+
+// 来場予定時刻の選択肢（9:00〜17:00、30分単位）
+const VISIT_TIME_OPTIONS = Array.from({ length: 17 }, (_, i) => {
+  const hour = Math.floor(i / 2) + 9;
+  const min = i % 2 === 0 ? "00" : "30";
+  const time = `${hour}:${min}`;
+  return { value: time, label: time };
+});
 import { DogFieldArray } from "./DogFieldArray";
 import { FeeCalculator } from "./FeeCalculator";
 
@@ -93,13 +102,6 @@ export function ReserveForm({ defaultDate }: ReserveFormProps) {
   return (
     <FormProvider {...methods}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* エラーメッセージ */}
-        {submitError && (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-            {submitError}
-          </div>
-        )}
-
         {/* 来場日時 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
@@ -110,10 +112,11 @@ export function ReserveForm({ defaultDate }: ReserveFormProps) {
             {...register("visitDate")}
             error={errors.visitDate?.message}
           />
-          <Input
+          <Select
             label="来場予定時刻"
-            placeholder="例：9時頃、30分後"
             required
+            options={VISIT_TIME_OPTIONS}
+            placeholder="選択してください"
             {...register("visitTime")}
             error={errors.visitTime?.message}
           />
@@ -179,6 +182,13 @@ export function ReserveForm({ defaultDate }: ReserveFormProps) {
           placeholder="気になることがあればご記入ください"
           {...register("note")}
         />
+
+        {/* エラーメッセージ */}
+        {submitError && (
+          <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+            {submitError}
+          </div>
+        )}
 
         {/* 送信ボタン */}
         <div className="pt-4">

@@ -364,9 +364,9 @@ export default function ReserveListPage() {
                                     </span>
                                   ) : dogs.length > 0 ? (
                                     <div className="flex flex-wrap gap-2">
-                                      {dogs.map((dog) => (
+                                      {dogs.map((dog, index) => (
                                         <span
-                                          key={dog.id}
+                                          key={`dog_${index}_${dog.id}`}
                                           className={cn(
                                             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
                                             sizeBadgeClass(dog.size)

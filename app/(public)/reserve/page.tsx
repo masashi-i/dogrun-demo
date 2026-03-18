@@ -31,7 +31,7 @@ export default async function ReservePage({ searchParams }: ReservePageProps) {
           <div className="max-w-2xl mx-auto">
             <Card className="mb-6 bg-accent/10 border-accent/30">
               <p className="text-sm text-text">
-                ご来場の予定をお知らせください。厳密な時間枠の予約ではありませんので、「9時頃」「30分後に着きます」などの大まかな時刻でOKです。
+                ご来場の予定時刻をお知らせください。厳密な時間枠の予約ではありませんので、前後しても構いません。
               </p>
               <p className="text-sm text-primary font-medium mt-2">
                 キャンセル料はかかりません。お気軽にご連絡ください。
