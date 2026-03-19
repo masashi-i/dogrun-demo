@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -11,6 +11,8 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Button } from "@/components/ui/Button";
+import { DogFieldArray } from "./DogFieldArray";
+import { FeeCalculator } from "./FeeCalculator";
 
 // 来場予定時刻の選択肢（9:00〜17:00、30分単位）
 const VISIT_TIME_OPTIONS = Array.from({ length: 17 }, (_, i) => {
@@ -19,8 +21,8 @@ const VISIT_TIME_OPTIONS = Array.from({ length: 17 }, (_, i) => {
   const time = `${hour}:${min}`;
   return { value: time, label: time };
 });
-import { DogFieldArray } from "./DogFieldArray";
-import { FeeCalculator } from "./FeeCalculator";
+
+const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
 interface ReserveFormProps {
   defaultDate?: string;
@@ -29,6 +31,23 @@ interface ReserveFormProps {
 export function ReserveForm({ defaultDate }: ReserveFormProps) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState("");
+  const [regularHolidays, setRegularHolidays] = useState<number[]>([]);
+  const [dateWarning, setDateWarning] = useState("");
+
+  // 定休日をロード
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch("/api/regular-holidays");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setRegularHolidays(data.map((h: { day_of_week: number }) => h.day_of_week));
+        }
+      } catch { /* フォールバック */ }
+    }
+    load();
+  }, []);
 
   const methods = useForm<ReservationInput>({
     resolver: zodResolver(reservationSchema),
@@ -48,8 +67,30 @@ export function ReserveForm({ defaultDate }: ReserveFormProps) {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = methods;
+
+  const watchedDate = watch("visitDate");
+
+  // 日付変更時に定休日チェック
+  const checkDate = useCallback((date: string) => {
+    if (!date || regularHolidays.length === 0) {
+      setDateWarning("");
+      return;
+    }
+    const d = new Date(date + "T00:00:00");
+    const dayOfWeek = d.getDay();
+    if (regularHolidays.includes(dayOfWeek)) {
+      setDateWarning(`${DAY_LABELS[dayOfWeek]}曜日は定休日のため来場連絡できません`);
+    } else {
+      setDateWarning("");
+    }
+  }, [regularHolidays]);
+
+  useEffect(() => {
+    checkDate(watchedDate);
+  }, [watchedDate, checkDate]);
 
   async function onSubmit(data: ReservationInput) {
     setSubmitError("");
@@ -122,6 +163,14 @@ export function ReserveForm({ defaultDate }: ReserveFormProps) {
           />
         </div>
 
+        {/* 定休日警告 */}
+        {dateWarning && (
+          <div className="rounded-lg bg-amber-50 border border-amber-300 p-4 text-sm text-amber-800 flex items-start gap-2">
+            <span className="shrink-0">⚠️</span>
+            <span>{dateWarning}</span>
+          </div>
+        )}
+
         {/* 人数 */}
         <Input
           label="大人の人数"
@@ -192,7 +241,7 @@ export function ReserveForm({ defaultDate }: ReserveFormProps) {
 
         {/* 送信ボタン */}
         <div className="pt-4">
-          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || !!dateWarning}>
             {isSubmitting ? "送信中..." : "来場連絡を送信する"}
           </Button>
         </div>

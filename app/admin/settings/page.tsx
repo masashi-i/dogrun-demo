@@ -13,6 +13,9 @@ interface Setting {
   value: string;
 }
 
+/** 曜日ラベル */
+const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"] as const;
+
 /** 施設情報フィールドの定義 */
 const SITE_INFO_FIELDS = [
   { key: "site_name", label: "サイト名", placeholder: "零ちゃっちゃファーム DOG RUN" },
@@ -36,6 +39,10 @@ export default function AdminSettingsPage() {
   const [editValue, setEditValue] = useState("");
   const [savingField, setSavingField] = useState(false);
 
+  // 定休日
+  const [regularHolidays, setRegularHolidays] = useState<number[]>([]);
+  const [savingHoliday, setSavingHoliday] = useState(false);
+
   // パスワード変更
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -48,9 +55,10 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [closedDaysData, settingsRes] = await Promise.all([
+        const [closedDaysData, settingsRes, holidaysRes] = await Promise.all([
           fetchClosedDays(),
           fetch("/api/settings").then((r) => r.json()),
+          fetch("/api/regular-holidays").then((r) => r.json()),
         ]);
         setClosedDays(closedDaysData);
 
@@ -60,6 +68,10 @@ export default function AdminSettingsPage() {
             map[s.key] = s.value;
           });
           setSettings(map);
+        }
+
+        if (Array.isArray(holidaysRes)) {
+          setRegularHolidays(holidaysRes.map((h: { day_of_week: number }) => h.day_of_week));
         }
       } catch (err) {
         setError(
@@ -97,6 +109,33 @@ export default function AdminSettingsPage() {
       alert(err instanceof Error ? err.message : "保存に失敗しました");
     } finally {
       setSavingField(false);
+    }
+  }
+
+  // --- 定休日 ---
+
+  async function handleToggleHoliday(dayOfWeek: number) {
+    setSavingHoliday(true);
+    const isCurrentlyHoliday = regularHolidays.includes(dayOfWeek);
+
+    try {
+      if (isCurrentlyHoliday) {
+        const res = await fetch(`/api/regular-holidays?day_of_week=${dayOfWeek}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("削除に失敗しました");
+        setRegularHolidays((prev) => prev.filter((d) => d !== dayOfWeek));
+      } else {
+        const res = await fetch("/api/regular-holidays", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ day_of_week: dayOfWeek }),
+        });
+        if (!res.ok) throw new Error("追加に失敗しました");
+        setRegularHolidays((prev) => [...prev, dayOfWeek].sort());
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "定休日の変更に失敗しました");
+    } finally {
+      setSavingHoliday(false);
     }
   }
 
@@ -394,6 +433,36 @@ export default function AdminSettingsPage() {
         {!showPasswordForm && !passwordSuccess && (
           <p className="text-sm text-text-muted">
             管理画面のログインパスワードを変更できます。
+          </p>
+        )}
+      </Card>
+
+      {/* 定休日設定 */}
+      <Card>
+        <h2 className="font-bold text-lg mb-4">定休日設定</h2>
+        <p className="text-sm text-text-muted mb-4">
+          毎週の定休日を設定します。チェックを入れた曜日は来場連絡・貸し切りフォームで選択不可になります。
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {DAY_LABELS.map((label, index) => (
+            <button
+              key={index}
+              type="button"
+              disabled={savingHoliday}
+              onClick={() => handleToggleHoliday(index)}
+              className={`flex items-center justify-center w-12 h-12 rounded-lg border-2 text-sm font-bold transition-colors ${
+                regularHolidays.includes(index)
+                  ? "bg-red-100 border-red-400 text-red-700"
+                  : "bg-surface-dark border-secondary/20 text-text-muted hover:border-primary/50"
+              } ${savingHoliday ? "opacity-50" : ""}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {regularHolidays.length > 0 && (
+          <p className="text-sm text-text-muted mt-3">
+            定休日: 毎週{regularHolidays.map((d) => DAY_LABELS[d]).join("・")}曜日
           </p>
         )}
       </Card>

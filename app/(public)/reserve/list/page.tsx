@@ -61,22 +61,27 @@ export default function ReserveListPage() {
   const [allCharters, setAllCharters] = useState<CharterReservation[]>([]);
   const [allNews, setAllNews] = useState<News[]>([]);
   const [allClosedDays, setAllClosedDays] = useState<ClosedDay[]>([]);
+  const [regularHolidays, setRegularHolidays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [reservations, charters, news, closedDays] = await Promise.all([
+        const [reservations, charters, news, closedDays, holidaysRes] = await Promise.all([
           fetchReservations(),
           fetchCharters(),
           fetchNews(true),
           fetchClosedDays(),
+          fetch("/api/regular-holidays").then((r) => r.json()).catch(() => []),
         ]);
         setAllReservations(reservations);
         setAllCharters(charters);
         setAllNews(news);
         setAllClosedDays(closedDays);
+        if (Array.isArray(holidaysRes)) {
+          setRegularHolidays(holidaysRes.map((h: { day_of_week: number }) => h.day_of_week));
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "データの取得に失敗しました");
       } finally {
@@ -117,11 +122,20 @@ export default function ReserveListPage() {
     [allNews, selectedDateStr]
   );
 
-  // 選択日の休業情報
+  // 選択日の休業情報（臨時休業）
   const closedInfo = useMemo(
     () => allClosedDays.find((cd) => cd.date === selectedDateStr),
     [allClosedDays, selectedDateStr]
   );
+
+  // 選択日が定休日かどうか
+  const isRegularHoliday = useMemo(() => {
+    if (!selectedDate || regularHolidays.length === 0) return false;
+    return regularHolidays.includes(selectedDate.getDay());
+  }, [selectedDate, regularHolidays]);
+
+  // 休業かどうか（臨時休業 or 定休日）
+  const isClosed = !!closedInfo || isRegularHoliday;
 
   // 貸し切り時間帯のセット（hour単位）
   const charterHours = useMemo(() => {
@@ -219,6 +233,7 @@ export default function ReserveListPage() {
               charters={allCharters}
               news={allNews}
               closedDays={allClosedDays}
+              regularHolidays={regularHolidays}
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
             />
@@ -239,7 +254,16 @@ export default function ReserveListPage() {
                   </div>
                 </div>
 
-                {/* 休業日の場合 */}
+                {/* 定休日の場合 */}
+                {isRegularHoliday && !closedInfo && (
+                  <Card className="bg-purple-50 border-purple-200 text-center py-8">
+                    <p className="text-lg font-medium text-purple-600">
+                      🏠 この日は定休日です
+                    </p>
+                  </Card>
+                )}
+
+                {/* 臨時休業の場合 */}
                 {closedInfo && (
                   <Card className="bg-gray-100 border-gray-300 text-center py-8">
                     <p className="text-lg font-medium text-gray-600">
@@ -308,7 +332,7 @@ export default function ReserveListPage() {
                 )}
 
                 {/* タイムテーブル（休業日でない場合） */}
-                {!closedInfo && (
+                {!isClosed && (
                   <Card className="p-0 overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
@@ -396,7 +420,7 @@ export default function ReserveListPage() {
                 )}
 
                 {/* 来場連絡ボタン */}
-                {!closedInfo && (
+                {!isClosed && (
                   <div className="text-center">
                     <Link href={`/reserve?date=${selectedDateStr}`}>
                       <Button size="lg" className="min-w-[280px]">
@@ -420,6 +444,12 @@ export default function ReserveListPage() {
                   </span>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-secondary/10 text-secondary-dark border-secondary/20">
                     🔒 貸し切り
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-purple-50 text-purple-600 border-purple-200">
+                    🏠 定休日
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-gray-100 text-gray-600 border-gray-300">
+                    🚫 臨時休業
                   </span>
                 </div>
               </div>

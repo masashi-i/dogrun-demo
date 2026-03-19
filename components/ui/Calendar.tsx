@@ -33,6 +33,8 @@ interface DayInfo {
   events: string[];
   /** 臨時休業 */
   isClosed: boolean;
+  /** 定休日 */
+  isRegularHoliday: boolean;
   /** 休業理由 */
   closedReason?: string;
 }
@@ -42,6 +44,7 @@ interface CalendarProps {
   charters: CharterReservation[];
   news: News[];
   closedDays: ClosedDay[];
+  regularHolidays?: number[];
   selectedDate: Date | null;
   onSelectDate: (date: Date) => void;
 }
@@ -51,6 +54,7 @@ export function Calendar({
   charters,
   news,
   closedDays,
+  regularHolidays = [],
   selectedDate,
   onSelectDate,
 }: CalendarProps) {
@@ -75,6 +79,7 @@ export function Calendar({
           hasCharter: false,
           events: [],
           isClosed: false,
+          isRegularHoliday: false,
         };
         existing.dogCount += r.dogs.length;
         existing.groupCount += 1;
@@ -92,6 +97,7 @@ export function Calendar({
           hasCharter: false,
           events: [],
           isClosed: false,
+          isRegularHoliday: false,
         };
         existing.hasCharter = true;
         map.set(key, existing);
@@ -108,12 +114,13 @@ export function Calendar({
           hasCharter: false,
           events: [],
           isClosed: false,
+          isRegularHoliday: false,
         };
         existing.events.push(n.title);
         map.set(key, existing);
       });
 
-    // 休業日集計
+    // 臨時休業日集計
     closedDays.forEach((cd) => {
       const key = cd.date;
       const existing = map.get(key) ?? {
@@ -122,14 +129,40 @@ export function Calendar({
         hasCharter: false,
         events: [],
         isClosed: false,
+        isRegularHoliday: false,
       };
       existing.isClosed = true;
       existing.closedReason = cd.reason;
       map.set(key, existing);
     });
 
+    // 定休日集計（表示月の全日付をチェック）
+    if (regularHolidays.length > 0) {
+      const monthStart = startOfMonth(currentMonth);
+      const monthEnd = endOfMonth(currentMonth);
+      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      days.forEach((day) => {
+        if (regularHolidays.includes(day.getDay())) {
+          const key = format(day, "yyyy-MM-dd");
+          const existing = map.get(key) ?? {
+            dogCount: 0,
+            groupCount: 0,
+            hasCharter: false,
+            events: [],
+            isClosed: false,
+            isRegularHoliday: false,
+          };
+          existing.isRegularHoliday = true;
+          if (!existing.isClosed) {
+            existing.isClosed = true;
+          }
+          map.set(key, existing);
+        }
+      });
+    }
+
     return map;
-  }, [reservations, charters, news, closedDays]);
+  }, [reservations, charters, news, closedDays, regularHolidays, currentMonth]);
 
   /** カレンダーグリッド用の日付配列 */
   const calendarDays = useMemo(() => {
@@ -259,8 +292,10 @@ export function Calendar({
                 inMonth && clickable && !isPast && "hover:bg-primary/5 cursor-pointer",
                 // クリック不可（休業日）
                 inMonth && !clickable && !isPast && "cursor-not-allowed",
-                // 休業日
-                info?.isClosed && inMonth && "bg-gray-100"
+                // 臨時休業
+                info?.isClosed && !info?.isRegularHoliday && inMonth && "bg-gray-100",
+                // 定休日
+                info?.isRegularHoliday && inMonth && "bg-purple-50"
               )}
             >
               {/* 日付数字 */}
@@ -280,10 +315,24 @@ export function Calendar({
               {/* インジケーター群 */}
               {inMonth && !isPast && info && (
                 <div className="mt-1 flex flex-col gap-0.5 w-full overflow-hidden">
-                  {/* 休業日 */}
-                  {info.isClosed && (
+                  {/* 定休日 */}
+                  {info.isRegularHoliday && !info.closedReason && (
+                    <span className="text-[10px] sm:text-xs truncate text-purple-500">
+                      <span className="hidden sm:inline">🏠 定休日</span>
+                      <span className="sm:hidden">🏠</span>
+                    </span>
+                  )}
+                  {/* 臨時休業 */}
+                  {info.isClosed && info.closedReason && !info.isRegularHoliday && (
                     <span className="text-[10px] sm:text-xs truncate text-gray-500">
-                      <span className="hidden sm:inline">🚫 休業</span>
+                      <span className="hidden sm:inline">🚫 臨時休業</span>
+                      <span className="sm:hidden">🚫</span>
+                    </span>
+                  )}
+                  {/* 定休日 + 臨時休業が重なった場合 */}
+                  {info.isRegularHoliday && info.closedReason && (
+                    <span className="text-[10px] sm:text-xs truncate text-gray-500">
+                      <span className="hidden sm:inline">🚫 臨時休業</span>
                       <span className="sm:hidden">🚫</span>
                     </span>
                   )}
@@ -325,7 +374,8 @@ export function Calendar({
         <span>📋 来場予定</span>
         <span>🔒 貸し切り</span>
         <span>🎉 イベント</span>
-        <span>🚫 休業</span>
+        <span className="text-purple-500">🏠 定休日</span>
+        <span>🚫 臨時休業</span>
         <span className="text-red-500">● 日祝</span>
         <span className="text-blue-500">● 土</span>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -29,10 +29,29 @@ const HOURS_OPTIONS = Array.from({ length: 7 }, (_, i) => ({
   label: `${i + 2}時間`,
 }));
 
+const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+
 export function CharterForm() {
   const router = useRouter();
   const [policyOpen, setPolicyOpen] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [regularHolidays, setRegularHolidays] = useState<number[]>([]);
+  const [dateWarning, setDateWarning] = useState("");
+
+  // 定休日をロード
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch("/api/regular-holidays");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setRegularHolidays(data.map((h: { day_of_week: number }) => h.day_of_week));
+        }
+      } catch { /* フォールバック */ }
+    }
+    load();
+  }, []);
 
   const methods = useForm<CharterInput>({
     resolver: zodResolver(charterSchema),
@@ -54,8 +73,29 @@ export function CharterForm() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = methods;
+
+  const watchedDate = watch("visitDate");
+
+  const checkDate = useCallback((date: string) => {
+    if (!date || regularHolidays.length === 0) {
+      setDateWarning("");
+      return;
+    }
+    const d = new Date(date + "T00:00:00");
+    const dayOfWeek = d.getDay();
+    if (regularHolidays.includes(dayOfWeek)) {
+      setDateWarning(`${DAY_LABELS[dayOfWeek]}曜日は定休日のため貸し切り予約できません`);
+    } else {
+      setDateWarning("");
+    }
+  }, [regularHolidays]);
+
+  useEffect(() => {
+    checkDate(watchedDate);
+  }, [watchedDate, checkDate]);
 
   async function onSubmit(data: CharterInput) {
     setSubmitError("");
@@ -140,6 +180,14 @@ export function CharterForm() {
             error={errors.hours?.message}
           />
         </div>
+
+        {/* 定休日警告 */}
+        {dateWarning && (
+          <div className="rounded-lg bg-amber-50 border border-amber-300 p-4 text-sm text-amber-800 flex items-start gap-2">
+            <span className="shrink-0">⚠️</span>
+            <span>{dateWarning}</span>
+          </div>
+        )}
 
         {/* 人数 */}
         <Input
@@ -249,7 +297,7 @@ export function CharterForm() {
 
         {/* 送信ボタン */}
         <div className="pt-4">
-          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || !!dateWarning}>
             {isSubmitting ? "送信中..." : "貸し切り予約を送信する"}
           </Button>
         </div>
