@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Container } from "@/components/ui/Container";
 import { SectionTitle } from "@/components/ui/SectionTitle";
 import { Card } from "@/components/ui/Card";
@@ -33,6 +33,10 @@ export default function AccessPage() {
   });
   const [loading, setLoading] = useState(true);
 
+  // 地図URLを一度だけ確定させるためのref
+  const mapSrcRef = useRef<string | null>(null);
+  const [mapSrc, setMapSrc] = useState<string | null>(null);
+
   useEffect(() => {
     async function loadSettings() {
       try {
@@ -49,6 +53,13 @@ export default function AccessPage() {
           }
         }
         setInfo(updated);
+
+        // 地図URLを一度だけセット（refで重複防止）
+        if (!mapSrcRef.current && updated.latitude && updated.longitude && apiKey) {
+          const src = `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${updated.latitude},${updated.longitude}&zoom=15`;
+          mapSrcRef.current = src;
+          setMapSrc(src);
+        }
       } catch {
         // フォールバック
       } finally {
@@ -72,7 +83,7 @@ export default function AccessPage() {
           <SectionTitle>施設情報</SectionTitle>
           <div className="max-w-4xl mx-auto space-y-8">
             {/* Google Maps */}
-            {info.latitude && info.longitude && apiKey ? (
+            {mapSrc ? (
               <div className="w-full h-72 lg:h-96 rounded-xl overflow-hidden border border-secondary/20">
                 <iframe
                   width="100%"
@@ -80,12 +91,12 @@ export default function AccessPage() {
                   style={{ border: 0 }}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${info.latitude},${info.longitude}&zoom=15`}
+                  src={mapSrc}
                   allowFullScreen
                   title="施設の地図"
                 />
               </div>
-            ) : (
+            ) : !loading ? (
               <div className="w-full h-72 lg:h-96 rounded-xl bg-surface-dark border border-secondary/20 flex items-center justify-center">
                 <div className="text-center text-text-muted">
                   <p className="text-4xl mb-2">📍</p>
@@ -93,7 +104,7 @@ export default function AccessPage() {
                   <p className="text-sm">位置情報の設定後に表示されます</p>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {loading ? (
               <p className="text-center text-text-muted">読み込み中...</p>
