@@ -12,34 +12,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "パスワード", type: "password" },
       },
       async authorize(credentials) {
-        const adminEmail = process.env.ADMIN_EMAIL
-
-        if (!adminEmail) {
-          console.error("[auth] ADMIN_EMAIL が未設定です")
-          return null
-        }
-
-        if (credentials?.email !== adminEmail) {
-          return null
-        }
-
+        const inputEmail = credentials?.email as string | undefined
         const inputPassword = credentials?.password as string | undefined
-        if (!inputPassword) return null
+        if (!inputEmail || !inputPassword) return null
 
-        // settingsテーブルからハッシュ化パスワードを取得
         try {
-          const { data, error } = await supabase
+          // settingsテーブルからadmin_emailとadmin_passwordを取得
+          const { data: rows, error } = await supabase
             .from("settings")
-            .select("value")
-            .eq("key", "admin_password")
-            .single()
+            .select("key, value")
+            .in("key", ["admin_email", "admin_password"])
 
-          if (error || !data?.value) {
-            console.error("[auth] admin_passwordの取得に失敗:", error?.message)
+          if (error || !rows) {
+            console.error("[auth] 認証情報の取得に失敗:", error?.message)
             return null
           }
 
-          const isValid = await bcrypt.compare(inputPassword, data.value)
+          const adminEmail = rows.find((r) => r.key === "admin_email")?.value
+          const adminPasswordHash = rows.find((r) => r.key === "admin_password")?.value
+
+          if (!adminEmail || !adminPasswordHash) {
+            console.error("[auth] admin_email または admin_password が未設定です")
+            return null
+          }
+
+          if (inputEmail !== adminEmail) return null
+
+          const isValid = await bcrypt.compare(inputPassword, adminPasswordHash)
           if (!isValid) return null
 
           return {

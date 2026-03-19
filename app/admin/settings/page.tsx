@@ -43,6 +43,14 @@ export default function AdminSettingsPage() {
   const [regularHolidays, setRegularHolidays] = useState<number[]>([]);
   const [savingHoliday, setSavingHoliday] = useState(false);
 
+  // メールアドレス変更
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [emailPassword, setEmailPassword] = useState("");
+  const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [emailSuccess, setEmailSuccess] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+
   // パスワード変更
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -139,6 +147,37 @@ export default function AdminSettingsPage() {
     }
   }
 
+  // --- メールアドレス変更 ---
+
+  async function handleChangeEmail() {
+    setEmailError("");
+    setEmailSuccess("");
+
+    if (!newAdminEmail || !emailPassword) return;
+
+    setSavingEmail(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "change_email", currentPassword: emailPassword, newEmail: newAdminEmail }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "メールアドレスの変更に失敗しました");
+      }
+      setSettings((prev) => ({ ...prev, admin_email: newAdminEmail }));
+      setEmailSuccess("メールアドレスを変更しました");
+      setEmailPassword("");
+      setNewAdminEmail("");
+      setShowEmailForm(false);
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : "メールアドレスの変更に失敗しました");
+    } finally {
+      setSavingEmail(false);
+    }
+  }
+
   // --- パスワード変更 ---
 
   async function handleChangePassword() {
@@ -159,7 +198,7 @@ export default function AdminSettingsPage() {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({ action: "change_password", currentPassword, newPassword }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -336,6 +375,90 @@ export default function AdminSettingsPage() {
             >
               編集
             </Button>
+          </div>
+        )}
+      </Card>
+
+      {/* 管理者メールアドレス */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-bold text-sm">管理者メールアドレス</h2>
+          {!showEmailForm && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowEmailForm(true);
+                setEmailError("");
+                setEmailSuccess("");
+                setNewAdminEmail(settings["admin_email"] ?? "");
+              }}
+            >
+              変更
+            </Button>
+          )}
+        </div>
+
+        {emailSuccess && (
+          <div className="rounded bg-green-50 border border-green-200 p-2 text-sm text-green-700 mb-2">
+            {emailSuccess}
+          </div>
+        )}
+
+        {showEmailForm ? (
+          <div className="space-y-3">
+            <Input
+              label="新しいメールアドレス"
+              type="email"
+              value={newAdminEmail}
+              onChange={(e) => setNewAdminEmail(e.target.value)}
+              placeholder="admin@example.com"
+              required
+            />
+            <Input
+              label="現在のパスワード（確認用）"
+              type="password"
+              value={emailPassword}
+              onChange={(e) => setEmailPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+
+            {emailError && (
+              <div className="rounded bg-red-50 border border-red-200 p-2 text-sm text-red-700">
+                {emailError}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleChangeEmail}
+                disabled={!newAdminEmail || !emailPassword || savingEmail}
+                size="sm"
+              >
+                {savingEmail ? "変更中..." : "メールアドレスを変更"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowEmailForm(false);
+                  setEmailPassword("");
+                  setNewAdminEmail("");
+                  setEmailError("");
+                }}
+              >
+                キャンセル
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between py-1.5 px-2 rounded bg-surface-dark">
+            <span className="text-sm">
+              {settings["admin_email"] || (
+                <span className="text-text-muted">未設定</span>
+              )}
+            </span>
           </div>
         )}
       </Card>
