@@ -234,22 +234,18 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">設定</h1>
+    <div className="space-y-3">
+      <h1 className="text-xl font-bold">設定</h1>
 
       {/* 施設情報 */}
-      <Card>
-        <h2 className="font-bold text-lg mb-4">施設情報</h2>
-        <p className="text-sm text-text-muted mb-4">
-          サイトに表示される施設情報です。変更するとフッター・アクセスページ・メール等に反映されます。
-        </p>
-
-        <div className="space-y-3">
+      <Card className="p-4">
+        <h2 className="font-bold text-sm mb-2">施設情報</h2>
+        <div className="space-y-1">
           {SITE_INFO_FIELDS.map((field) => (
             <div key={field.key}>
               {editingField === field.key ? (
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="flex-1 min-w-[250px]">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex-1 min-w-[200px]">
                     <Input
                       label={field.label}
                       value={editValue}
@@ -273,10 +269,10 @@ export default function AdminSettingsPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface-dark">
-                  <div>
-                    <span className="text-xs text-text-muted">{field.label}</span>
-                    <p className="text-sm">
+                <div className="flex items-center justify-between py-1.5 px-2 rounded bg-surface-dark">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[11px] text-text-muted">{field.label}</span>
+                    <p className="text-sm truncate">
                       {settings[field.key] || (
                         <span className="text-text-muted">未設定</span>
                       )}
@@ -285,6 +281,7 @@ export default function AdminSettingsPage() {
                   <Button
                     variant="outline"
                     size="sm"
+                    className="ml-2 shrink-0"
                     onClick={() => handleStartEdit(field.key)}
                   >
                     編集
@@ -297,15 +294,11 @@ export default function AdminSettingsPage() {
       </Card>
 
       {/* 通知先メールアドレス */}
-      <Card>
-        <h2 className="font-bold text-lg mb-4">通知先メールアドレス</h2>
-        <p className="text-sm text-text-muted mb-4">
-          来場連絡・貸し切り予約が入った際に通知メールを送信するアドレスです。
-        </p>
-
+      <Card className="p-4">
+        <h2 className="font-bold text-sm mb-2">通知先メールアドレス</h2>
         {editingField === "notification_email" ? (
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-[250px]">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[200px]">
               <Input
                 label="メールアドレス"
                 type="email"
@@ -330,7 +323,7 @@ export default function AdminSettingsPage() {
             </Button>
           </div>
         ) : (
-          <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface-dark">
+          <div className="flex items-center justify-between py-1.5 px-2 rounded bg-surface-dark">
             <span className="text-sm">
               {settings["notification_email"] || (
                 <span className="text-text-muted">未設定</span>
@@ -348,9 +341,9 @@ export default function AdminSettingsPage() {
       </Card>
 
       {/* パスワード変更 */}
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-lg">管理者パスワード</h2>
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-bold text-sm">管理者パスワード</h2>
           {!showPasswordForm && (
             <Button
               variant="outline"
@@ -367,13 +360,13 @@ export default function AdminSettingsPage() {
         </div>
 
         {passwordSuccess && (
-          <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700 mb-4">
+          <div className="rounded bg-green-50 border border-green-200 p-2 text-sm text-green-700 mb-2">
             {passwordSuccess}
           </div>
         )}
 
         {showPasswordForm && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <Input
               label="現在のパスワード"
               type="password"
@@ -438,19 +431,16 @@ export default function AdminSettingsPage() {
       </Card>
 
       {/* 定休日設定 */}
-      <Card>
-        <h2 className="font-bold text-lg mb-4">定休日設定</h2>
-        <p className="text-sm text-text-muted mb-4">
-          毎週の定休日を設定します。チェックを入れた曜日は来場連絡・貸し切りフォームで選択不可になります。
-        </p>
-        <div className="flex flex-wrap gap-3">
+      <Card className="p-4">
+        <h2 className="font-bold text-sm mb-2">定休日設定</h2>
+        <div className="flex flex-wrap gap-2">
           {DAY_LABELS.map((label, index) => (
             <button
               key={index}
               type="button"
               disabled={savingHoliday}
               onClick={() => handleToggleHoliday(index)}
-              className={`flex items-center justify-center w-12 h-12 rounded-lg border-2 text-sm font-bold transition-colors ${
+              className={`flex items-center justify-center w-10 h-10 rounded-lg border-2 text-xs font-bold transition-colors ${
                 regularHolidays.includes(index)
                   ? "bg-red-100 border-red-400 text-red-700"
                   : "bg-surface-dark border-secondary/20 text-text-muted hover:border-primary/50"
@@ -461,21 +451,18 @@ export default function AdminSettingsPage() {
           ))}
         </div>
         {regularHolidays.length > 0 && (
-          <p className="text-sm text-text-muted mt-3">
+          <p className="text-xs text-text-muted mt-2">
             定休日: 毎週{regularHolidays.map((d) => DAY_LABELS[d]).join("・")}曜日
           </p>
         )}
       </Card>
 
       {/* 臨時休業日管理 */}
-      <Card>
-        <h2 className="font-bold text-lg mb-4">臨時休業日管理</h2>
-        <p className="text-sm text-text-muted mb-4">
-          設定した日付は来場連絡フォーム・貸し切りフォームのカレンダーで選択不可になります。
-        </p>
+      <Card className="p-4">
+        <h2 className="font-bold text-sm mb-2">臨時休業日管理</h2>
 
         {/* 追加フォーム */}
-        <div className="flex flex-wrap items-end gap-3 mb-6 pb-6 border-b border-secondary/10">
+        <div className="flex flex-wrap items-end gap-2 mb-4 pb-4 border-b border-secondary/10">
           <div className="w-48">
             <Input
               label="休業日"

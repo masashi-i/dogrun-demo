@@ -14,10 +14,12 @@ import { Button } from "@/components/ui/Button";
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<ContactInput>({
     resolver: zodResolver(contactSchema),
@@ -32,10 +34,22 @@ export default function ContactPage() {
     },
   });
 
-  function onSubmit(data: ContactInput) {
-    // Phase 0: コンソールログのみ
-    console.log("お問い合わせデータ:", data);
-    setSubmitted(true);
+  async function onSubmit(data: ContactInput) {
+    setSubmitError("");
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "送信に失敗しました");
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "送信に失敗しました。しばらくしてからもう一度お試しください。");
+    }
   }
 
   return (
@@ -59,7 +73,7 @@ export default function ContactPage() {
                 <p className="text-text-muted mb-8">
                   内容を確認の上、折り返しご連絡いたします。
                 </p>
-                <Button onClick={() => setSubmitted(false)} variant="outline">
+                <Button onClick={() => { setSubmitted(false); reset(); }} variant="outline">
                   新しいお問い合わせ
                 </Button>
               </div>
@@ -129,6 +143,12 @@ export default function ContactPage() {
                     {...register("content")}
                     error={errors.content?.message}
                   />
+
+                  {submitError && (
+                    <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+                      {submitError}
+                    </div>
+                  )}
 
                   <div className="pt-4">
                     <Button

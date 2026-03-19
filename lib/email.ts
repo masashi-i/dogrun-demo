@@ -373,3 +373,90 @@ export async function sendCancelNotificationEmail(ownerEmail: string, data: Canc
     console.error('[email] キャンセル通知メール送信失敗:', err)
   }
 }
+
+// --- お問い合わせメール ---
+
+const INQUIRY_TYPE_LABELS: Record<string, string> = {
+  massage: '犬護舎流マッサージ（予約制）',
+  trainer: '犬の訓練士カウンセリング（予約制）',
+  discdog: 'ディスクドッグ体験',
+  other: 'その他',
+}
+
+interface ContactEmailData {
+  inquiry_type: string
+  name: string
+  phone: string
+  email: string
+  dog_info: string
+  preferred_date: string
+  content: string
+}
+
+export async function sendContactOwnerEmail(ownerEmail: string, data: ContactEmailData): Promise<void> {
+  if (!ownerEmail) return
+
+  const site = await getSiteSettings()
+  const typeLabel = INQUIRY_TYPE_LABELS[data.inquiry_type] ?? data.inquiry_type
+
+  const rows =
+    infoRow('種別', typeLabel) +
+    infoRow('お名前', data.name) +
+    infoRow('電話番号', data.phone) +
+    infoRow('メール', data.email) +
+    (data.dog_info ? infoRow('犬の情報', data.dog_info) : '') +
+    (data.preferred_date ? infoRow('希望日時', data.preferred_date) : '') +
+    infoRow('内容', data.content.replace(/\n/g, '<br>'))
+
+  const body = `
+    <p>新しいお問い合わせが届きました。</p>
+    ${infoTable(rows)}
+  `
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: ownerEmail,
+      subject: `【お問い合わせ】${typeLabel} ${data.name}様`,
+      html: layout('お問い合わせが届きました', body, site),
+    })
+    console.log('[email] 経営者へお問い合わせメール送信成功')
+  } catch (err) {
+    console.error('[email] 経営者へのお問い合わせメール送信失敗:', err)
+  }
+}
+
+export async function sendContactUserEmail(data: ContactEmailData): Promise<void> {
+  if (!data.email) return
+
+  const site = await getSiteSettings()
+  const typeLabel = INQUIRY_TYPE_LABELS[data.inquiry_type] ?? data.inquiry_type
+
+  const rows =
+    infoRow('種別', typeLabel) +
+    (data.dog_info ? infoRow('犬の情報', data.dog_info) : '') +
+    (data.preferred_date ? infoRow('希望日時', data.preferred_date) : '') +
+    infoRow('内容', data.content.replace(/\n/g, '<br>'))
+
+  const body = `
+    <p>${data.name} 様</p>
+    <p>お問い合わせを受け付けました。ありがとうございます。</p>
+    ${infoTable(rows)}
+    <p style="font-size:13px;color:#6B5C47;">
+      内容を確認の上、通常1〜2営業日以内に折り返しご連絡いたします。<br>
+      ${site.phone ? `お急ぎの場合はお電話にてお問い合わせください。<br>TEL: ${site.phone}` : ''}
+    </p>
+  `
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: data.email,
+      subject: `【${site.siteName}】お問い合わせを受け付けました`,
+      html: layout('お問い合わせを受け付けました', body, site),
+    })
+    console.log('[email] ユーザーへお問い合わせ確認メール送信成功')
+  } catch (err) {
+    console.error('[email] ユーザーへのお問い合わせ確認メール送信失敗:', err)
+  }
+}
