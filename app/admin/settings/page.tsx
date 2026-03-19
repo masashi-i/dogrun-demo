@@ -23,6 +23,8 @@ const SITE_INFO_FIELDS = [
   { key: "address", label: "住所", placeholder: "多治見市下沢町..." },
   { key: "instagram_url", label: "Instagram URL", placeholder: "https://www.instagram.com/..." },
   { key: "business_hours", label: "営業時間", placeholder: "9:00〜日没（季節により変動）" },
+  { key: "latitude", label: "緯度", placeholder: "35.3328" },
+  { key: "longitude", label: "経度", placeholder: "137.1167" },
 ] as const;
 
 export default function AdminSettingsPage() {

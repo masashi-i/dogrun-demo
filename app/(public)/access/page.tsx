@@ -9,19 +9,27 @@ interface SiteInfo {
   phone: string;
   address: string;
   businessHours: string;
+  latitude: string;
+  longitude: string;
 }
 
 const KEY_MAP: Record<string, keyof SiteInfo> = {
   phone: "phone",
   address: "address",
   business_hours: "businessHours",
+  latitude: "latitude",
+  longitude: "longitude",
 };
+
+const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
 export default function AccessPage() {
   const [info, setInfo] = useState<SiteInfo>({
     phone: "",
     address: "",
     businessHours: "",
+    latitude: "",
+    longitude: "",
   });
   const [loading, setLoading] = useState(true);
 
@@ -33,7 +41,7 @@ export default function AccessPage() {
         const data = await res.json();
         if (!Array.isArray(data)) return;
 
-        const updated: SiteInfo = { phone: "", address: "", businessHours: "" };
+        const updated: SiteInfo = { phone: "", address: "", businessHours: "", latitude: "", longitude: "" };
         for (const row of data) {
           const field = KEY_MAP[row.key];
           if (field && row.value) {
@@ -63,14 +71,29 @@ export default function AccessPage() {
         <Container>
           <SectionTitle>施設情報</SectionTitle>
           <div className="max-w-4xl mx-auto space-y-8">
-            {/* Google Maps プレースホルダー */}
-            <div className="w-full h-64 lg:h-96 rounded-xl bg-surface-dark border border-secondary/20 flex items-center justify-center">
-              <div className="text-center text-text-muted">
-                <p className="text-4xl mb-2">📍</p>
-                <p className="font-medium">Google Maps</p>
-                <p className="text-sm">住所確定後に埋め込み予定</p>
+            {/* Google Maps */}
+            {info.latitude && info.longitude && apiKey ? (
+              <div className="w-full h-72 lg:h-96 rounded-xl overflow-hidden border border-secondary/20">
+                <iframe
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  src={`https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${info.latitude},${info.longitude}&zoom=15`}
+                  allowFullScreen
+                  title="施設の地図"
+                />
               </div>
-            </div>
+            ) : (
+              <div className="w-full h-72 lg:h-96 rounded-xl bg-surface-dark border border-secondary/20 flex items-center justify-center">
+                <div className="text-center text-text-muted">
+                  <p className="text-4xl mb-2">📍</p>
+                  <p className="font-medium">Google Maps</p>
+                  <p className="text-sm">位置情報の設定後に表示されます</p>
+                </div>
+              </div>
+            )}
 
             {loading ? (
               <p className="text-center text-text-muted">読み込み中...</p>
